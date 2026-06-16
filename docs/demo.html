@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账单归类助手 · Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            min-height: 100vh;
+        }
+        .container { max-width: 960px; margin: 0 auto; padding: 40px 20px; }
+
+        /* 头部 */
+        .demo-badge {
+            display: inline-block; background: #667eea; color: #fff;
+            padding: 4px 12px; border-radius: 20px; font-size: 12px;
+            margin-bottom: 8px;
+        }
+        h1 { font-size: 28px; margin-bottom: 4px; }
+        .subtitle { color: #888; margin-bottom: 8px; }
+        .source-info {
+            font-size: 14px; color: #aaa; margin-bottom: 24px;
+            border-bottom: 1px solid #eee; padding-bottom: 16px;
+        }
+
+        /* 统计卡片 */
+        .summary-bar {
+            display: flex; gap: 16px; margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            flex: 1; min-width: 140px;
+            background: #fff; border-radius: 12px; padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .stat-card .label { font-size: 13px; color: #888; }
+        .stat-card .value { font-size: 24px; font-weight: bold; margin-top: 4px; }
+        .stat-card .sub-value { font-size: 13px; color: #aaa; margin-top: 2px; }
+
+        /* 月度报表 */
+        .month-card {
+            background: #fff; border-radius: 12px; margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden;
+        }
+        .month-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .month-header .month { font-size: 18px; font-weight: bold; }
+        .month-header .total { font-size: 18px; color: #e74c3c; font-weight: bold; }
+        .month-body { padding: 16px 20px; }
+        .category-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0; border-bottom: 1px solid #f8f8f8;
+            font-size: 14px;
+        }
+        .category-row:last-child { border-bottom: none; }
+        .category-name { color: #555; display: flex; align-items: center; gap: 6px; }
+        .category-dot {
+            width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+        }
+        .category-amount { font-weight: 600; }
+        .category-bar {
+            height: 4px; background: #eee; border-radius: 2px; margin-top: 4px;
+            overflow: hidden;
+        }
+        .category-bar-fill {
+            height: 100%; border-radius: 2px; transition: width 0.5s;
+        }
+
+        /* 明细 */
+        .detail-toggle {
+            color: #667eea; cursor: pointer; font-size: 13px;
+            padding: 8px 0; user-select: none;
+        }
+        .detail-toggle:hover { text-decoration: underline; }
+        .detail-list { display: none; margin-top: 8px; border-top: 1px solid #f0f0f0; padding-top: 8px; }
+        .detail-list.open { display: block; }
+        .txn-row {
+            display: flex; justify-content: space-between;
+            padding: 6px 0; font-size: 13px; border-bottom: 1px solid #f5f5f5;
+        }
+        .txn-merchant { color: #555; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .txn-amount { font-weight: 600; width: 80px; text-align: right; }
+        .txn-date { color: #999; width: 80px; text-align: right; }
+        .txn-category {
+            font-size: 11px; color: #fff;
+            background: #667eea; border-radius: 4px; padding: 1px 6px;
+            margin-left: 8px; white-space: nowrap;
+        }
+
+        /* 分类大图 */
+        .cat-pie-section { margin-top: 24px; }
+        .cat-pie-section h3 { font-size: 16px; margin-bottom: 16px; color: #555; }
+        .cat-pie-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .cat-pie-item {
+            display: flex; align-items: center; gap: 12px;
+            background: #fff; border-radius: 10px; padding: 14px 16px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .cat-pie-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+        .cat-pie-info { flex: 1; min-width: 0; }
+        .cat-pie-name { font-size: 14px; }
+        .cat-pie-amount { font-size: 15px; font-weight: bold; }
+        .cat-pie-pct { font-size: 12px; color: #aaa; }
+
+        /* 收入提示 */
+        .income-notice {
+            background: #fff; border-radius: 12px; padding: 16px 20px;
+            margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-left: 4px solid #52c41a;
+        }
+        .income-notice .label { font-size: 13px; color: #888; }
+        .income-notice .value { font-size: 20px; font-weight: bold; color: #52c41a; }
+
+        .footer {
+            text-align: center; margin-top: 40px; padding: 20px;
+            font-size: 13px; color: #ccc;
+        }
+
+        @media (max-width: 600px) {
+            .container { padding: 20px 12px; }
+            .stat-card { min-width: 100px; }
+            .stat-card .value { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <span class="demo-badge">📊 Demo 数据</span>
+    <h1>账单归类报告</h1>
+    <p class="subtitle">支付宝 + 微信 2026年6月账单</p>
+    <p class="source-info">
+        数据来源：支付宝(10笔) · 微信(5笔) · 共15笔交易
+    </p>
+
+    <!-- 统计 -->
+    <div class="summary-bar">
+        <div class="stat-card">
+            <div class="label">总支出</div>
+            <div class="value">¥2,786.50</div>
+            <div class="sub-value">6月共30天</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">日均支出</div>
+            <div class="value">¥92.88</div>
+            <div class="sub-value">15笔交易</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">最大类目</div>
+            <div class="value" style="color:#e74c3c;font-size:20px;">教育·学习</div>
+            <div class="sub-value">¥365.00 (13.1%)</div>
+        </div>
+    </div>
+
+    <!-- 收入 vs 支出提示 -->
+    <div class="income-notice">
+        <div class="label">本月收入</div>
+        <div class="value">+¥30,000.00</div>
+        <div style="font-size:14px;color:#888;margin-top:4px;">
+            结余 <strong style="color:#52c41a;">¥27,213.50</strong>
+            （储蓄率 90.7%）
+        </div>
+    </div>
+
+    <!-- 月度明细 -->
+    <div id="reportContainer"></div>
+
+    <!-- 全部分类概览 -->
+    <div class="cat-pie-section">
+        <h3>📂 全部分类</h3>
+        <div class="cat-pie-grid" id="categoryPieGrid"></div>
+    </div>
+
+    <div class="footer">
+        账单归类助手 · Demo 仅为效果展示，不收集任何数据
+    </div>
+</div>
+
+<script>
+const COLORS = [
+    '#667eea', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
+    '#1abc9c', '#e67e22', '#3498db', '#e91e63', '#00bcd4',
+    '#ff5722', '#8bc34a', '#ff9800', '#795548', '#607d8b'
+];
+
+// ====== 模拟数据 ======
+const DEMO_RECORDS = [
+    { date: '2026-06-01', merchant: '瑞幸咖啡(上海)有限公司', amount: 29.00, category: '餐饮·饮品', source: '支付宝' },
+    { date: '2026-06-01', merchant: '滴滴出行科技有限公司', amount: 38.50, category: '交通·打车', source: '支付宝' },
+    { date: '2026-06-02', merchant: '京东商城', amount: 129.00, category: '购物·电商', source: '支付宝' },
+    { date: '2026-06-03', merchant: '美团外卖平台', amount: 45.00, category: '餐饮·外卖', source: '支付宝' },
+    { date: '2026-06-04', merchant: '国网上海电力', amount: 256.00, category: '居住·水电物业', source: '支付宝' },
+    { date: '2026-06-05', merchant: '上海万达影城', amount: 89.00, category: '娱乐·文娱', source: '支付宝' },
+    { date: '2026-06-06', merchant: '张三', amount: 200.00, category: '社交·转账', source: '支付宝' },
+    { date: '2026-06-07', merchant: '全家便利店(上海店)', amount: 15.00, category: '餐饮·零售', source: '支付宝' },
+    { date: '2026-06-08', merchant: '中国石化上海分公司', amount: 320.00, category: '交通·加油充电', source: '支付宝' },
+    { date: '2026-06-09', merchant: '得到App', amount: 365.00, category: '教育·学习', source: '支付宝' },
+    { date: '2026-06-10', merchant: '星巴克(陆家嘴店)', amount: 32.00, category: '餐饮·饮品', source: '微信' },
+    { date: '2026-06-11', merchant: '肯德基(人民广场店)', amount: 68.00, category: '餐饮·正餐', source: '微信' },
+    { date: '2026-06-12', merchant: '拼多多', amount: 35.00, category: '购物·电商', source: '微信' },
+    { date: '2026-06-13', merchant: '李四', amount: 500.00, category: '社交·转账', source: '微信' },
+    { date: '2026-06-14', merchant: '中国移动', amount: 185.00, category: '通信·话费', source: '微信' },
+];
+
+// 按月份和分类聚合
+function buildReport(records) {
+    const monthly = {};
+    records.forEach(r => {
+        const mk = r.date.substring(0, 7);
+        if (!monthly[mk]) monthly[mk] = [];
+        monthly[mk].push(r);
+    });
+    const report = {};
+    Object.keys(monthly).sort().forEach(m => {
+        const items = monthly[m];
+        const total = items.reduce((s, i) => s + i.amount, 0);
+        const byCat = {};
+        items.forEach(i => { byCat[i.category] = (byCat[i.category] || 0) + i.amount; });
+        report[m] = {
+            total: Math.round(total * 100) / 100,
+            count: items.length,
+            by_category: Object.fromEntries(Object.entries(byCat).sort((a, b) => b[1] - a[1])),
+        };
+    });
+    return report;
+}
+
+// 渲染
+function render() {
+    const report = buildReport(DEMO_RECORDS);
+    const container = document.getElementById('reportContainer');
+    container.innerHTML = '';
+    let colorIdx = 0;
+
+    Object.keys(report).sort().reverse().forEach(month => {
+        const rpt = report[month];
+        const maxAmt = Math.max(...Object.values(rpt.by_category), 1);
+
+        let catHtml = '';
+        Object.entries(rpt.by_category).forEach(([cat, amt]) => {
+            const pct = (amt / maxAmt * 100).toFixed(0);
+            const color = COLORS[colorIdx++ % COLORS.length];
+            const icon = getCategoryIcon(cat);
+            catHtml += `
+                <div class="category-row">
+                    <span class="category-name">
+                        <span class="category-dot" style="background:${color}"></span>
+                        ${icon} ${cat}
+                    </span>
+                    <span class="category-amount">¥${amt.toFixed(2)}</span>
+                </div>
+                <div class="category-bar">
+                    <div class="category-bar-fill" style="width:${pct}%;background:${color}"></div>
+                </div>
+            `;
+        });
+
+        const monthTxns = DEMO_RECORDS.filter(r => r.date.startsWith(month));
+        let txnHtml = '';
+        monthTxns.forEach(t => {
+            txnHtml += `
+                <div class="txn-row">
+                    <span class="txn-merchant">${t.merchant}</span>
+                    <span class="txn-category">${t.category}</span>
+                    <span class="txn-amount">¥${t.amount.toFixed(2)}</span>
+                    <span class="txn-date">${t.date.substring(5)}</span>
+                </div>
+            `;
+        });
+
+        container.innerHTML += `
+            <div class="month-card">
+                <div class="month-header" onclick="toggleMonth(this)">
+                    <span class="month">📅 ${month}</span>
+                    <span>
+                        <span style="color:#888;font-size:14px;font-weight:normal;margin-right:12px;">${rpt.count}笔</span>
+                        <span class="total">¥${rpt.total.toFixed(2)}</span>
+                    </span>
+                </div>
+                <div class="month-body">
+                    ${catHtml}
+                    <div class="detail-toggle" onclick="toggleDetail(this)">📋 查看 ${monthTxns.length} 笔交易明细</div>
+                    <div class="detail-list">${txnHtml}</div>
+                </div>
+            </div>
+        `;
+    });
+
+    // 分类概览
+    renderCategoryPie(DEMO_RECORDS);
+}
+
+function renderCategoryPie(records) {
+    const byCat = {};
+    let total = 0;
+    records.forEach(r => {
+        byCat[r.category] = (byCat[r.category] || 0) + r.amount;
+        total += r.amount;
+    });
+    const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+
+    const grid = document.getElementById('categoryPieGrid');
+    grid.innerHTML = '';
+    sorted.forEach(([cat, amt], i) => {
+        const pct = (amt / total * 100).toFixed(1);
+        const color = COLORS[i % COLORS.length];
+        const icon = getCategoryIcon(cat);
+        grid.innerHTML += `
+            <div class="cat-pie-item">
+                <span class="cat-pie-dot" style="background:${color}"></span>
+                <div class="cat-pie-info">
+                    <div class="cat-pie-name">${icon} ${cat}</div>
+                    <div class="cat-pie-amount">¥${amt.toFixed(2)}</div>
+                </div>
+                <div class="cat-pie-pct">${pct}%</div>
+            </div>
+        `;
+    });
+}
+
+function getCategoryIcon(cat) {
+    if (cat.includes('餐饮')) return '🍽️';
+    if (cat.includes('交通')) return '🚗';
+    if (cat.includes('购物')) return '🛒';
+    if (cat.includes('居住')) return '🏠';
+    if (cat.includes('通信')) return '📱';
+    if (cat.includes('金融')) return '💳';
+    if (cat.includes('娱乐')) return '🎮';
+    if (cat.includes('医疗')) return '🏥';
+    if (cat.includes('教育')) return '📚';
+    if (cat.includes('社交')) return '💬';
+    return '📦';
+}
+
+function toggleMonth(header) {
+    // just keep it open always — no toggle needed for demo
+}
+
+function toggleDetail(el) {
+    const list = el.nextElementSibling;
+    list.classList.toggle('open');
+    el.textContent = list.classList.contains('open') ? '📋 隐藏明细' : '📋 查看明细';
+}
+
+render();
+</script>
+</body>
+</html>
