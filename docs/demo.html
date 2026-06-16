@@ -133,12 +133,62 @@
             --c9: #e91e63; --c10: #00bcd4;
         }
 
+        /* 消费建议 */
+        .advice-card {
+            background: #fff; border-radius: 14px; overflow: hidden;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.05); margin-bottom: 20px;
+        }
+        .advice-header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; padding: 20px 24px;
+        }
+        .advice-header h2 { font-size: 18px; }
+        .advice-header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+        .advice-body { padding: 20px 24px; }
+        .advice-item {
+            display: flex; gap: 16px; padding: 14px 0;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .advice-item:last-child { border-bottom: none; }
+        .advice-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; flex-shrink: 0;
+        }
+        .advice-icon.red { background: #fef0ef; }
+        .advice-icon.orange { background: #fff7e6; }
+        .advice-icon.green { background: #f6ffed; }
+        .advice-icon.purple { background: #f9f0ff; }
+        .advice-icon.blue { background: #e6f7ff; }
+        .advice-content { flex: 1; }
+        .advice-title {
+            font-size: 15px; font-weight: 600; margin-bottom: 4px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .advice-tag {
+            font-size: 10px; padding: 1px 8px; border-radius: 10px;
+            font-weight: 500;
+        }
+        .advice-tag.urgent { background: #fff1f0; color: #e74c3c; }
+        .advice-tag.normal { background: #f6ffed; color: #52c41a; }
+        .advice-tag.easy { background: #e6f7ff; color: #1890ff; }
+        .advice-desc { font-size: 13px; color: #666; line-height: 1.6; margin-top: 4px; }
+        .advice-metric {
+            display: inline-flex; align-items: center; gap: 4px;
+            margin-top: 8px; font-size: 12px; color: #888;
+            background: #f5f5f5; padding: 3px 10px; border-radius: 6px;
+        }
+        .advice-metric strong { color: #e74c3c; }
+        .advice-metric strong.green { color: #52c41a; }
+
         /* 响应式 */
         @media (max-width: 800px) {
             .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
             .container { padding: 16px 12px; }
             .kpi-card .value { font-size: 22px; }
             .top-bar h1 { font-size: 20px; }
+            .advice-header { padding: 16px 18px; }
+            .advice-body { padding: 16px 18px; }
         }
 
         .footer {
@@ -271,6 +321,15 @@
                 <div style="width:9.3%;height:100%;background:linear-gradient(90deg,#667eea,#764ba2);border-radius:4px;"></div>
             </div>
         </div>
+    </div>
+
+    <!-- ===== 消费优化建议 ===== -->
+    <div class="advice-card" id="adviceSection">
+        <div class="advice-header">
+            <h2>💡 消费优化建议</h2>
+            <p>基于本月交易数据的个性化建议</p>
+        </div>
+        <div class="advice-body" id="adviceBody"></div>
     </div>
 
     <!-- ===== 交易明细表 ===== -->
@@ -601,7 +660,123 @@ function renderCatBar() {
     });
 }
 
-// ====== 9. 交易明细表 ======
+// ====== 8.5 消费优化建议 ======
+function renderAdvice() {
+    const cats = byCategory(RECORDS);
+    const totalAmt = Object.values(cats).reduce(function(a,b) { return a+b; }, 0);
+    const socialAmt = RECORDS.filter(function(r) { return r.category === '社交·转账'; }).reduce(function(s,r) { return s+r.amount; }, 0);
+    var coffee = RECORDS.filter(function(r) { return r.merchant.indexOf('咖啡') >= 0 || r.merchant.indexOf('星巴克') >= 0; });
+    var coffeeAmt = coffee.reduce(function(s,r) { return s+r.amount; }, 0);
+    var takeout = RECORDS.filter(function(r) { return r.category.indexOf('外卖') >= 0; });
+    var takeoutAmt = takeout.reduce(function(s,r) { return s+r.amount; }, 0);
+    var fuel = RECORDS.filter(function(r) { return r.merchant.indexOf('石化') >= 0; });
+    var fuelAmt = fuel.length > 0 ? fuel.reduce(function(s,r) { return s+r.amount; }, 0) : 0;
+    var phone = RECORDS.filter(function(r) { return r.merchant.indexOf('移动') >= 0; });
+    var phoneAmt = phone.length > 0 ? phone.reduce(function(s,r) { return s+r.amount; }, 0) : 0;
+    var bigTxns = RECORDS.filter(function(r) { return r.amount > 200 && r.category !== '社交·转账'; });
+
+    var items = [];
+
+    // 1. 社交转账
+    if (socialAmt > totalAmt * 0.12) {
+        items.push({
+            icon: '🔴', iconClass: 'red',
+            title: '社交转账占比偏高',
+            tag: '需关注', tagClass: 'urgent',
+            desc: '社交·转账共 ¥' + socialAmt.toFixed(2) + '，占总支出 ' + (socialAmt/totalAmt*100).toFixed(1) + '%。建议与真实消费分开记账，避免账面失真的同时评估是否存在不必要的资金往来。',
+            metric: '占比 ' + (socialAmt/totalAmt*100).toFixed(0) + '% · 金额 ¥' + socialAmt.toFixed(2)
+        });
+    }
+
+    // 2. 咖啡
+    if (coffeeAmt > 50) {
+        var monthly = coffeeAmt * 4.3;
+        items.push({
+            icon: '☕', iconClass: 'orange',
+            title: '咖啡支出可优化',
+            tag: '低门槛', tagClass: 'easy',
+            desc: '本月咖啡消费 ¥' + coffeeAmt.toFixed(2) + '（' + coffee.length + '次）。按此频率月均约 ¥' + monthly.toFixed(0) + '。自带或使用公司咖啡每月可省 ¥' + (monthly * 0.6).toFixed(0) + '+。',
+            metric: '预估月消费 ¥' + monthly.toFixed(0) + ' · 可省 60%'
+        });
+    }
+
+    // 3. 外卖
+    if (takeoutAmt > 0) {
+        items.push({
+            icon: '🥡', iconClass: 'orange',
+            title: '外卖频率较高',
+            tag: '可优化', tagClass: 'normal',
+            desc: '外卖消费 ¥' + takeoutAmt.toFixed(2) + '。做饭成本约为外卖的 40-60%，每周 5 次外卖减到 3 次，月省 ¥200-400。',
+            metric: '单月外卖 ¥' + takeoutAmt.toFixed(2) + ' · 做饭可省一半'
+        });
+    }
+
+    // 4. 加油
+    if (fuelAmt > 200) {
+        var saved = (fuelAmt * 0.08).toFixed(0);
+        items.push({
+            icon: '⛽', iconClass: 'blue',
+            title: '加油可用优惠平台',
+            tag: '低门槛', tagClass: 'easy',
+            desc: '加油 ¥' + fuelAmt.toFixed(2) + '。滴滴加油/团油等平台每升便宜 0.5-1 元，叠加优惠券后节省约 8-12%。',
+            metric: '预估月省 ¥' + saved + ' · 操作零成本'
+        });
+    }
+
+    // 5. 话费
+    if (phoneAmt > 120) {
+        var possible = '99';
+        items.push({
+            icon: '📱', iconClass: 'green',
+            title: '话费套餐偏高',
+            tag: '可优化', tagClass: 'normal',
+            desc: '话费 ¥' + phoneAmt.toFixed(2) + '/月。检查当前套餐用量，是否有更低档位可选（¥' + possible + ' 档通常够用），或考虑携号转网优惠。',
+            metric: '可降至 ¥' + possible + '/月 · 月省 ¥' + (phoneAmt - 99).toFixed(0)
+        });
+    }
+
+    // 6. 大额消费提醒
+    if (bigTxns.length >= 2) {
+        var totalBig = bigTxns.reduce(function(s,r) { return s+r.amount; }, 0);
+        items.push({
+            icon: '💡', iconClass: 'purple',
+            title: '大额消费较集中',
+            tag: '建议', tagClass: 'normal',
+            desc: '有 ' + bigTxns.length + ' 笔超过 ¥200 的非转账消费（合计 ¥' + totalBig.toFixed(2) + '）。建议对单笔大额支出设置 24 小时冷静期，减少冲动消费。',
+            metric: bigTxns.length + ' 笔 · 占非转账支出 ' + (totalBig/(totalAmt-socialAmt)*100).toFixed(0) + '%'
+        });
+    }
+
+    // 7. 总结
+    var saveMin = 0, saveMax = 0;
+    if (coffeeAmt > 50) { saveMin += 50; saveMax += 150; }
+    if (fuelAmt > 200) { saveMin += 30; saveMax += 50; }
+    if (phoneAmt > 120) { saveMin += 60; saveMax += 86; }
+    if (takeoutAmt > 0) { saveMin += 100; saveMax += 300; }
+    var totalSaving = '¥' + saveMin + '~' + saveMax + '/月';
+
+    items.push({
+        icon: '🎯', iconClass: 'green',
+        title: '优化汇总：' + totalSaving,
+        tag: '合计', tagClass: 'easy',
+        desc: '以上建议若全部采纳，每月可节省 ' + totalSaving + '（¥' + (saveMin*12/10000).toFixed(1) + '~' + (saveMax*12/10000).toFixed(1) + '万/年）。无需降低生活质量，只是切换更优的消费方式。',
+        metric: '年化节省 ¥' + (saveMin*12/10000).toFixed(1) + '~' + (saveMax*12/10000).toFixed(1) + '万'
+    });
+
+    var html = '';
+    for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        html += '<div class="advice-item">' +
+            '<div class="advice-icon ' + it.iconClass + '">' + it.icon + '</div>' +
+            '<div class="advice-content">' +
+                '<div class="advice-title">' + it.title + ' <span class="advice-tag ' + it.tagClass + '">' + it.tag + '</span></div>' +
+                '<div class="advice-desc">' + it.desc + '</div>' +
+                '<div class="advice-metric">' + it.metric + '</div>' +
+            '</div></div>';
+    }
+    document.getElementById('adviceBody').innerHTML = html;
+}
+
 function renderTable() {
     const tbody = document.querySelector('#txnTable tbody');
     tbody.innerHTML = RECORDS.map(r => {
@@ -626,6 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCategoryRanking();
     renderSource();
     renderCatBar();
+    renderAdvice();
     renderTable();
 });
 </script>
