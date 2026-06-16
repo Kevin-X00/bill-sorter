@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账单归类助手</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            min-height: 100vh;
+        }
+        .container { max-width: 960px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 28px; margin-bottom: 8px; }
+        .subtitle { color: #888; margin-bottom: 32px; }
+        .api-notice {
+            background: #fffbe6; border: 1px solid #ffe58f; border-radius: 10px;
+            padding: 14px 18px; margin-bottom: 24px; font-size: 14px; color: #ad8b00;
+        }
+        .api-notice input {
+            width: 100%; margin-top: 8px; padding: 8px 12px;
+            border: 1px solid #ffe58f; border-radius: 6px; font-size: 14px;
+            background: #fff; outline: none;
+        }
+        .api-notice input:focus { border-color: #ad8b00; }
+
+        /* 上传区 */
+        .upload-zone {
+            border: 2px dashed #ccc;
+            border-radius: 16px;
+            padding: 60px 20px;
+            text-align: center;
+            background: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        .upload-zone .icon { font-size: 48px; margin-bottom: 16px; }
+        .upload-zone .text { font-size: 16px; color: #666; }
+        .upload-zone .hint { font-size: 13px; color: #aaa; margin-top: 8px; }
+        .upload-zone input { display: none; }
+
+        /* 加载中 */
+        .loading { display: none; text-align: center; padding: 60px 0; }
+        .loading .spinner {
+            width: 40px; height: 40px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 结果区 */
+        .result { display: none; }
+        .summary-bar {
+            display: flex; gap: 16px; margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            flex: 1; min-width: 140px;
+            background: #fff; border-radius: 12px; padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .stat-card .label { font-size: 13px; color: #888; }
+        .stat-card .value { font-size: 24px; font-weight: bold; margin-top: 4px; }
+
+        /* 月度报表 */
+        .month-card {
+            background: #fff; border-radius: 12px; margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden;
+        }
+        .month-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .month-header .month { font-size: 18px; font-weight: bold; }
+        .month-header .total { font-size: 18px; color: #e74c3c; font-weight: bold; }
+        .month-body { padding: 16px 20px; display: none; }
+        .month-body.open { display: block; }
+        .category-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0; border-bottom: 1px solid #f8f8f8;
+            font-size: 14px;
+        }
+        .category-row:last-child { border-bottom: none; }
+        .category-name { color: #555; }
+        .category-amount { font-weight: 600; }
+        .category-bar {
+            height: 4px; background: #eee; border-radius: 2px; margin-top: 4px;
+            overflow: hidden;
+        }
+        .category-bar-fill {
+            height: 100%; border-radius: 2px; transition: width 0.5s;
+        }
+
+        .detail-toggle {
+            color: #667eea; cursor: pointer; font-size: 13px;
+            padding: 8px 0;
+        }
+        .detail-toggle:hover { text-decoration: underline; }
+        .detail-list { display: none; margin-top: 8px; }
+        .detail-list.open { display: block; }
+        .txn-row {
+            display: flex; justify-content: space-between;
+            padding: 6px 0; font-size: 13px; border-bottom: 1px solid #f5f5f5;
+        }
+        .txn-merchant { color: #555; flex: 1; }
+        .txn-amount { font-weight: 600; width: 80px; text-align: right; }
+        .txn-date { color: #999; width: 80px; text-align: right; }
+        .txn-category {
+            font-size: 11px; color: #fff;
+            background: #667eea; border-radius: 4px; padding: 1px 6px;
+            margin-left: 8px;
+        }
+
+        .category-row.unclassified .category-name { color: #e74c3c; }
+        .category-row.unclassified .category-amount { color: #e74c3c; }
+
+        .llm-section {
+            margin-top: 24px; padding: 20px;
+            background: #fff; border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            display: none;
+        }
+        .llm-section.show { display: block; }
+        .llm-section .title { font-size: 15px; font-weight: bold; margin-bottom: 12px; }
+        .llm-section input {
+            width: 100%; padding: 10px 14px; border: 2px solid #ddd;
+            border-radius: 8px; font-size: 14px; margin-bottom: 12px;
+        }
+        .llm-section input:focus { border-color: #667eea; outline: none; }
+        .llm-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; border: none; padding: 10px 24px;
+            border-radius: 8px; cursor: pointer; font-size: 14px;
+        }
+        .llm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .llm-status { font-size: 13px; color: #888; margin-top: 8px; }
+
+        @media (max-width: 600px) {
+            .container { padding: 20px 12px; }
+            .stat-card { min-width: 100px; }
+            .stat-card .value { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📊 账单归类助手</h1>
+    <p class="subtitle">上传支付宝/微信导出的账单，自动归类出报表</p>
+
+    <!-- API 地址配置 -->
+    <div class="api-notice">
+        后端服务地址（运行 bill-sorter 的服务器地址）
+        <input type="url" id="apiUrl" value="http://192.168.0.9:5111" placeholder="http://your-server:5111" />
+    </div>
+
+    <!-- 上传区 -->
+    <div class="upload-zone" id="uploadZone">
+        <div class="icon">📄</div>
+        <div class="text">点击或拖拽上传 CSV / Excel 账单文件</div>
+        <div class="hint">支持：支付宝导出CSV · 微信导出CSV · Excel</div>
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+    </div>
+
+    <!-- 加载 -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div>正在分析账单...</div>
+    </div>
+
+    <!-- 结果 -->
+    <div class="result" id="result">
+        <div class="summary-bar" id="summaryBar"></div>
+        <div id="reportContainer"></div>
+        <div class="llm-section" id="llmSection">
+            <div class="title">🤖 AI 精准分类（可选）</div>
+            <p style="font-size:13px;color:#888;margin-bottom:12px;">
+                输入 OpenAI API Key，让 AI 对未分类的记录自动归类
+            </p>
+            <input type="password" id="apiKeyInput" placeholder="sk-..." />
+            <button class="llm-btn" id="llmBtn" onclick="classifyWithLLM()">开始 AI 分类</button>
+            <div class="llm-status" id="llmStatus"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const COLORS = [
+    '#667eea', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
+    '#1abc9c', '#e67e22', '#3498db', '#e91e63', '#00bcd4',
+    '#ff5722', '#8bc34a', '#ff9800', '#795548', '#607d8b'
+];
+
+function getApiBase() {
+    return document.getElementById('apiUrl').value.replace(/\/+$/, '');
+}
+
+// 上传
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault(); uploadZone.classList.add('dragover');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault(); uploadZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+let currentRecords = [];
+let currentReport = {};
+
+function handleFile(file) {
+    if (!file.name.match(/\.(csv|xlsx?)$/i)) {
+        alert('仅支持 CSV 和 Excel 文件');
+        return;
+    }
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('result').style.display = 'none';
+    document.querySelector('.upload-zone').style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch(getApiBase() + '/api/upload', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('loading').style.display = 'none';
+            if (data.error) {
+                alert('解析失败: ' + data.error);
+                resetUpload();
+                return;
+            }
+            currentRecords = data.records;
+            currentReport = data.report;
+            renderResult(data);
+        })
+        .catch(err => {
+            document.getElementById('loading').style.display = 'none';
+            alert('连接后端失败: ' + err.message + '\n请检查后端服务地址是否正确');
+            resetUpload();
+        });
+}
+
+function resetUpload() {
+    document.querySelector('.upload-zone').style.display = 'block';
+    fileInput.value = '';
+}
+
+function renderResult(data) {
+    document.getElementById('result').style.display = 'block';
+    const months = Object.keys(data.report);
+    let totalAmount = 0, totalCount = 0;
+    months.forEach(m => { totalAmount += data.report[m].total; totalCount += data.report[m].count; });
+    document.getElementById('summaryBar').innerHTML = `
+        <div class="stat-card"><div class="label">总月份</div><div class="value">${months.length}</div></div>
+        <div class="stat-card"><div class="label">总支出</div><div class="value">¥${totalAmount.toFixed(2)}</div></div>
+        <div class="stat-card"><div class="label">总笔数</div><div class="value">${totalCount}</div></div>
+    `;
+
+    const container = document.getElementById('reportContainer');
+    container.innerHTML = '';
+    let colorIdx = 0;
+
+    months.sort().reverse().forEach(month => {
+        const rpt = data.report[month];
+        const maxAmount = Math.max(...Object.values(rpt.by_category), 1);
+
+        let catHtml = '';
+        Object.entries(rpt.by_category).forEach(([cat, amt]) => {
+            const pct = (amt / maxAmount * 100).toFixed(0);
+            const color = cat === '未分类' ? '#e74c3c' : COLORS[colorIdx++ % COLORS.length];
+            catHtml += `
+                <div class="category-row ${cat === '未分类' ? 'unclassified' : ''}">
+                    <span class="category-name">${cat}</span>
+                    <span class="category-amount">¥${amt.toFixed(2)}</span>
+                </div>
+                <div class="category-bar">
+                    <div class="category-bar-fill" style="width:${pct}%;background:${color}"></div>
+                </div>
+            `;
+        });
+
+        const monthTxn = data.records.filter(r =>
+            typeof r.date === 'string' ? r.date.startsWith(month) :
+            (r.date && r.date.startsWith(month))
+        );
+
+        let txnHtml = '';
+        monthTxn.forEach(t => {
+            const dateStr = typeof t.date === 'string' ? t.date.substring(0, 10) : '--';
+            txnHtml += `
+                <div class="txn-row">
+                    <span class="txn-merchant">${t.merchant}</span>
+                    <span class="txn-category">${t.category || '未分类'}</span>
+                    <span class="txn-amount">¥${t.amount.toFixed(2)}</span>
+                    <span class="txn-date">${dateStr}</span>
+                </div>
+            `;
+        });
+
+        container.innerHTML += `
+            <div class="month-card">
+                <div class="month-header" onclick="toggleMonth(this)">
+                    <span class="month">${month}</span>
+                    <span>
+                        <span style="color:#888;font-size:14px;font-weight:normal;margin-right:12px;">${rpt.count}笔</span>
+                        <span class="total">¥${rpt.total.toFixed(2)}</span>
+                    </span>
+                </div>
+                <div class="month-body open">
+                    ${catHtml}
+                    <div class="detail-toggle" onclick="toggleDetail(this)">📋 查看 ${monthTxn.length} 笔交易明细</div>
+                    <div class="detail-list">${txnHtml}</div>
+                </div>
+            </div>
+        `;
+    });
+
+    const unclassifiedTotal = data.records.filter(r => r.category === '未分类').length;
+    const llmSection = document.getElementById('llmSection');
+    if (unclassifiedTotal > 0) {
+        llmSection.classList.add('show');
+        document.querySelector('#llmSection .title').textContent =
+            `🤖 AI 精准分类（${unclassifiedTotal} 条未分类）`;
+    } else {
+        llmSection.classList.remove('show');
+    }
+}
+
+function toggleMonth(header) {
+    header.nextElementSibling.classList.toggle('open');
+}
+
+function toggleDetail(el) {
+    const list = el.nextElementSibling;
+    list.classList.toggle('open');
+    el.textContent = list.classList.contains('open') ? '📋 隐藏明细' : '📋 查看明细';
+}
+
+function classifyWithLLM() {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    if (!key) { alert('请输入 API Key'); return; }
+    const btn = document.getElementById('llmBtn');
+    const status = document.getElementById('llmStatus');
+    btn.disabled = true;
+    status.textContent = '正在分类...';
+
+    fetch(getApiBase() + '/api/classify_all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records: currentRecords, api_key: key })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            status.textContent = `✅ AI 分类完成，处理了 ${data.classified} 条记录`;
+            currentRecords = data.records;
+            renderResult({ records: currentRecords, report: rebuildReport(currentRecords), total_records: currentRecords.length });
+        } else {
+            status.textContent = '❌ ' + (data.error || '分类失败');
+        }
+        btn.disabled = false;
+    })
+    .catch(err => {
+        status.textContent = '❌ ' + err.message;
+        btn.disabled = false;
+    });
+}
+
+function rebuildReport(records) {
+    const monthly = {};
+    records.forEach(r => {
+        const monthKey = r.date.substring(0, 7);
+        if (!monthly[monthKey]) monthly[monthKey] = [];
+        monthly[monthKey].push(r);
+    });
+    const report = {};
+    Object.keys(monthly).sort().forEach(month => {
+        const items = monthly[month];
+        const total = items.reduce((s, i) => s + i.amount, 0);
+        const byCategory = {};
+        items.forEach(i => {
+            byCategory[i.category] = (byCategory[i.category] || 0) + i.amount;
+        });
+        report[month] = {
+            total: Math.round(total * 100) / 100,
+            count: items.length,
+            by_category: Object.fromEntries(Object.entries(byCategory).sort((a, b) => b[1] - a[1])),
+        };
+    });
+    return report;
+}
+</script>
+</body>
+</html>
